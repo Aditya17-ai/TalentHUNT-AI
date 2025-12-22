@@ -91,6 +91,32 @@ export function JobImportModal({ onImport }: JobImportModalProps) {
                             value={keyword}
                             onChange={(e) => setKeyword(e.target.value)}
                             className="col-span-3"
+                            placeholder="e.g. Java Developer"
+                        />
+                    </div>
+
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">Or Paste URL</span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <label className="text-right text-sm font-medium">Job Link</label>
+                        <Input
+                            placeholder="https://www.indeed.com/..."
+                            className="col-span-3"
+                            onChange={(e) => {
+                                const url = e.target.value;
+                                if (url.includes('indeed')) setPlatform('Indeed');
+                                if (url.includes('naukri')) setPlatform('Naukri');
+                                if (url.includes('linkedin')) setPlatform('LinkedIn');
+                                // Simple extraction simulation
+                                if (url.length > 10) setKeyword('Imported Job Role');
+                            }}
                         />
                     </div>
 

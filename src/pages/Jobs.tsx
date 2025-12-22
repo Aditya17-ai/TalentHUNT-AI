@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { MapPin, Briefcase, DollarSign, Sparkles } from "lucide-react";
 import { JobImportModal } from "@/components/JobImportModal";
+import { PostJobModal, JobFormData } from "@/components/PostJobModal";
 import { ScrapedJob } from "@/utils/jobScraper";
 
 interface Job {
@@ -90,16 +91,6 @@ const Jobs = () => {
           salary_range: '$100k - $120k',
           employment_type: 'Full-time',
           required_skills: ['React', 'TypeScript', 'Tailwind CSS']
-        },
-        {
-          id: '2',
-          title: 'Backend Engineer (Demo)',
-          company: 'DataSystems',
-          description: 'Join our backend team building scalable APIs. (This is demo data because the database is not connected).',
-          location: 'New York, NY',
-          salary_range: '$130k - $150k',
-          employment_type: 'Full-time',
-          required_skills: ['Node.js', 'PostgreSQL', 'Python']
         }
       ]);
     } finally {
@@ -107,82 +98,40 @@ const Jobs = () => {
     }
   };
 
-  const seedJobs = async () => {
+  const handlePostJob = async (jobData: JobFormData) => {
     setLoading(true);
 
-    // Schema A: Template schema (includes 'requirements')
-    const jobsSchemaA = [
-      {
-        title: 'Frontend Developer',
-        company: 'TechCorp',
-        description: 'We are looking for a React expert to join our dynamic team.',
-        location: 'Remote',
-        salary_range: '$100k - $120k',
-        employment_type: 'Full-time',
-        required_skills: ['React', 'TypeScript', 'Tailwind CSS'],
-        requirements: "Strong proficiency in React, TypeScript, and Tailwind CSS.",
-        is_active: true
-      },
-      {
-        title: 'Backend Engineer',
-        company: 'DataSystems',
-        description: 'Join our backend team building scalable APIs.',
-        location: 'New York, NY',
-        salary_range: '$130k - $150k',
-        employment_type: 'Full-time',
-        required_skills: ['Node.js', 'PostgreSQL', 'Python'],
-        requirements: "Experience with Node.js, PostgreSQL, and Python.",
-        is_active: true
-      },
-      {
-        title: 'Product Designer',
-        company: 'CreativeStudio',
-        description: 'Design beautiful interfaces and user experiences.',
-        location: 'San Francisco, CA',
-        salary_range: '$90k - $110k',
-        employment_type: 'Contract',
-        required_skills: ['Figma', 'UI/UX', 'Prototyping'],
-        requirements: "Proficiency in Figma and prototyping tools.",
-        is_active: true
-      }
-    ];
+    const newJobPayload = {
+      ...jobData,
+      is_active: true
+    };
 
-    // Schema B: Custom/Standard schema (NO 'requirements')
-    const jobsSchemaB = jobsSchemaA.map(({ requirements, ...job }) => job);
-
-    console.log("Attempting seed...");
-    const { error: errorA } = await supabase.from('jobs').insert(jobsSchemaA);
+    // Try Schema A (Template - with requirements)
+    const { error: errorA } = await supabase.from('jobs').insert([newJobPayload]);
 
     if (errorA) {
       console.warn("Schema A failed:", errorA.message);
-      const { error: errorB } = await supabase.from('jobs').insert(jobsSchemaB);
+
+      // Try Schema B (Standard - no requirements)
+      const { requirements, ...schemaBPayload } = newJobPayload;
+      const { error: errorB } = await supabase.from('jobs').insert([schemaBPayload]);
 
       if (errorB) {
         console.error("Schema B failed:", errorB);
-        if (errorB.code === 'PGRST205' || errorB.message?.includes("does not exist")) {
-          toast.warning("Database tables missing! Showing sample data locally.");
+        toast.warning("Database unavailable. Posting job locally.");
 
-          // Fallback to local state so user feels it works
-          const localSamples = jobsSchemaA.map((j, i) => ({
-            id: `sample-${Date.now()}-${i}`,
-            title: j.title,
-            company: j.company,
-            description: j.description,
-            location: j.location,
-            salary_range: j.salary_range,
-            employment_type: j.employment_type,
-            required_skills: j.required_skills
-          }));
-          setJobs(prev => [...localSamples, ...prev]);
-        } else {
-          toast.error(`Failed to add jobs. DB Error: ${errorB.message}`);
-        }
+        // Add to local state
+        const localJob = {
+          id: `local-${Date.now()}`,
+          ...jobData
+        };
+        setJobs(prev => [localJob as unknown as Job, ...prev]);
       } else {
-        toast.success("Sample jobs added (using correct schema)!");
+        toast.success("Job posted successfully!");
         fetchJobs();
       }
     } else {
-      toast.success("Sample jobs added!");
+      toast.success("Job posted successfully!");
       fetchJobs();
     }
     setLoading(false);
@@ -214,11 +163,9 @@ const Jobs = () => {
 
       if (errorB) {
         console.error("Import Schema B failed:", errorB);
-        // Even if DB fails, show them in UI locally for the demo effect
         toast.error(`Import saved to local view only (DB Error: ${errorB.message})`);
-        // Add to local state with generated IDs
-        const localJobs = newJobs.map((j, i) => ({ ...j, id: `local-${Date.now()}-${i}` }));
-        setJobs(prev => [...localJobs, ...prev]);
+        const localJobs = newJobs.map((j, i) => ({ ...j, id: `local-import-${Date.now()}-${i}` }));
+        setJobs(prev => [...localJobs as unknown as Job[], ...prev]);
       } else {
         toast.success("Jobs imported successfully!");
         fetchJobs();
@@ -231,7 +178,7 @@ const Jobs = () => {
   };
 
   if (!user || loading) {
-    return null; // Or a spinner
+    return null;
   }
 
   return (
@@ -246,9 +193,7 @@ const Jobs = () => {
               <p className="text-muted-foreground">Discover opportunities matched to your skills</p>
             </div>
             <div className="flex gap-2">
-              <Button onClick={seedJobs} variant="outline" size="sm" className="hidden sm:flex">
-                Add Samples
-              </Button>
+              <PostJobModal onPost={handlePostJob} triggerLabel="Post Job" />
               <JobImportModal onImport={handleImportJobs} />
             </div>
           </div>
@@ -258,9 +203,7 @@ const Jobs = () => {
               <h3 className="text-lg font-semibold mb-2">No jobs found</h3>
               <p className="text-muted-foreground mb-4">The job board is currently empty.</p>
               <div className="flex gap-4 justify-center">
-                <Button onClick={seedJobs} variant="outline">
-                  Add Sample Jobs
-                </Button>
+                <PostJobModal onPost={handlePostJob} triggerLabel="Add Job Manually" />
                 <JobImportModal onImport={handleImportJobs} />
               </div>
             </div>
