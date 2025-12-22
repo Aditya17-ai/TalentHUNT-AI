@@ -1,46 +1,73 @@
-# TalentHUNT - AI-Powered Job Board
+# Welcome to your Lovable project
 
-TalentHUNT is a modern, AI-driven job portal connecting top talent with great opportunities.
+## Project info
 
-## Features
+**URL**: https://lovable.dev/projects/3c4eb2f1-9cd2-475e-92a9-1a102b225004
 
--   **Browse Jobs**: Filter and search through a curated list of job openings.
--   **Smart Job Import**: "Scrape" job listings from platforms like Indeed and Naukri (Simulated & Real Proxy).
--   **AI Resume Parsing**: Drag-and-drop resume upload to auto-extract skills and experience.
--   **Manual Job Posting**: Easily post new job opportunities.
--   **(Coming Soon) AI Match Score**: Instantly see how well your profile matches a job description.
+## How can I edit this code?
 
-## Tech Stack
+There are several ways of editing your application.
 
--   **Frontend**: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
--   **Backend**: Supabase (Auth, Database, Storage)
--   **Icons**: Lucide React
+**Use Lovable**
 
-## Getting Started
+Simply visit the [Lovable Project](https://lovable.dev/projects/3c4eb2f1-9cd2-475e-92a9-1a102b225004) and start prompting.
 
-1.  **Clone the repository**:
-    ```sh
-    git clone https://github.com/Aditya17-ai/TalentHUNT-AI.git
-    ```
+Changes made via Lovable will be committed automatically to this repo.
 
-2.  **Install dependencies**:
-    ```sh
-    npm install
-    # or
-    bun install
-    ```
+**Use your preferred IDE**
 
-3.  **Start the development server**:
-    ```sh
-    npm run dev
-    ```
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
 
-## Database Setup
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-1.  Create a Supabase project.
-2.  Run the provided `db_schema.sql` script in your Supabase SQL Editor to set up tables and policies.
-3.  Add your Supabase credentials to `.env`.
+Follow these steps:
 
----
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
 
-Built with ❤️ by the TalentHUNT Team.
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
+# Step 3: Install the necessary dependencies.
+npm i
+
+# Step 4: Start the development server with auto-reloading and an instant preview.
+npm run dev
+```
+
+**Edit a file directly in GitHub**
+
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
+
+**Use GitHub Codespaces**
+
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
+
+## What technologies are used for this project?
+
+This project is built with:
+
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
+
+## How can I deploy this project?
+
+Simply open [Lovable](https://lovable.dev/projects/3c4eb2f1-9cd2-475e-92a9-1a102b225004) and click on Share -> Publish.
+
+## Can I connect a custom domain to my Lovable project?
+
+Yes, you can!
+
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
