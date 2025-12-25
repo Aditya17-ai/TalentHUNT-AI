@@ -252,7 +252,19 @@ const Jobs = () => {
                       </div>
                     </div>
 
-                    <Button variant="hero" onClick={() => navigate(`/jobs/${job.id}`)}>View Details & Apply</Button>
+                    <div className="flex gap-3">
+                      <Button variant="hero" onClick={() => navigate(`/jobs/${job.id}`)}>
+                        View Details & Apply
+                      </Button>
+
+                      {job.external_link && (
+                        <Button variant="outline" asChild>
+                          <a href={job.external_link} target="_blank" rel="noopener noreferrer">
+                            Apply on {job.company.includes('Indeed') ? 'Indeed' : 'Original Site'} ↗
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}

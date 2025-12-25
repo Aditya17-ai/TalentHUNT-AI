@@ -53,9 +53,36 @@ export const simulateScraping = async (
         }
     }
 
-    // --- REAL SCRAPING ATTEMPT ---
+    // --- REAL SCRAPING STRATEGY ---
+    // 1. Try Local Python Backend (Scrapy) - User Requested
     try {
-        console.log(`[Scraper] Fetching via proxy: ${targetUrl}`);
+        console.log(`[Scraper] Attempting Python Backend: http://localhost:5000/scrape`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
+        const response = await fetch('http://localhost:5000/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: targetUrl }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.jobs.length > 0) {
+                console.log(`[Scraper] Python Backend Success: Found ${data.jobs.length} jobs`);
+                // Add source tag
+                return data.jobs.map((j: any) => ({ ...j, source: 'Scrapy' }));
+            }
+        }
+    } catch (err) {
+        console.log("[Scraper] Python Backend offline or failed. Falling back to Browser Proxy.");
+    }
+
+    // 2. Browser Proxy Strategy (Existing Fallback)
+    try {
+        console.log(`[Scraper] Fetching via AllOrigins proxy: ${targetUrl}`);
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
         const response = await fetch(proxyUrl);
         const data = await response.json();
@@ -65,8 +92,7 @@ export const simulateScraping = async (
         const html = data.contents;
         const realJobs: ScrapedJob[] = [];
 
-        // Strategy 1: JSON-LD (Structured Data)
-        // Most modern job sites (including jobcode.in potentially) use Schema.org/JobPosting
+        // Strategy 2a: JSON-LD (Structured Data) - Best for Indeed/Google Jobs
         const jsonLdRegex = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi;
         let match;
 
@@ -103,22 +129,30 @@ export const simulateScraping = async (
             } catch (e) { /* continued */ }
         }
 
-        // Strategy 2: Meta Tags (Open Graph) - Good for single job pages like jobcode.in specific links
-        if (realJobs.length === 0 && isUrl) {
-            const getMeta = (name: string) => {
-                const regex = new RegExp(`<meta property="${name}" content="([^"]*)"`, 'i');
-                const m = html.match(regex);
-                return m ? m[1] : null;
-            };
+        // Strategy 2b: DOM Parsing (Fallback)
+        if (realJobs.length === 0) {
+            console.log("[Scraper] JSON-LD failed, attempting DOM parsing...");
+            const parser = new DOMParser();
 
-            const ogTitle = getMeta('og:title');
-            const ogDesc = getMeta('og:description');
+            // We need to decode the HTML entities if it's coming from a JSON string sometimes, 
+            // but here 'html' is likely the raw string. 
+            // Note: DOMParser works best in browser context.
+            const doc = parser.parseFromString(html, 'text/html');
 
-            if (ogTitle) {
+            // Generic selectors for common job sites (heuristics)
+            // Indeed uses lots of dynamic classes, but structure is somewhat stable.
+            // We try to find cards.
+
+            // Try OGP first (Open Graph) - Very reliable for single pages
+            const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
+            const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
+            const ogSite = doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content');
+
+            if (isUrl && ogTitle) {
                 realJobs.push({
                     title: ogTitle,
-                    company: 'External Company', // Often in title like "Role at Company"
-                    location: 'Check Link',
+                    company: ogSite || 'External Company',
+                    location: 'See Link',
                     salary_range: 'Not specified',
                     employment_type: 'Full-time',
                     description: ogDesc || 'No description found',
@@ -126,6 +160,33 @@ export const simulateScraping = async (
                     requirements: 'See link',
                     source: 'External',
                     external_link: targetUrl
+                });
+            } else {
+                // Try List Parsing (e.g. searching for list items)
+                // This is hard to do generically without specific site adapters, 
+                // but let's try to find common "job card" patterns
+                const jobCards = doc.querySelectorAll('div[class*="job"], div[class*="Job"], li[class*="result"]');
+
+                jobCards.forEach((card, index) => {
+                    if (index > 4) return; // Limit to 5
+
+                    const title = card.querySelector('h2, h3, a[class*="title"]')?.textContent?.trim();
+                    const company = card.querySelector('[class*="company"], [class*="Company"]')?.textContent?.trim();
+
+                    if (title && title.length < 100) { // basic sanity check
+                        realJobs.push({
+                            title: title,
+                            company: company || 'Unknown',
+                            location: 'Remote/Hybrid',
+                            salary_range: 'Competitive',
+                            employment_type: 'Full-time',
+                            description: 'Collected via web scraper.',
+                            required_skills: [keyword],
+                            requirements: 'Check listing',
+                            source: 'External',
+                            external_link: targetUrl
+                        });
+                    }
                 });
             }
         }
