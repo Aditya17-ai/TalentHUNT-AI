@@ -64,10 +64,26 @@ export const ResumeUpload = ({ userId, onUploadComplete }: { userId: string; onU
       setUploadProgress(60);
       setIsUploading(false);
       setIsParsing(true);
-      toast.info('Analyzing resume with Local AI...');
+      toast.info('Analyzing resume with Python Engine...');
 
-      // 2. Parse Locally
-      const result = await parseResume(file);
+      // 2. Parse via Python Backend
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const parserResponse = await fetch('http://localhost:5000/parse-resume', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!parserResponse.ok) throw new Error("Resume Parsing Failed");
+
+      const parserJson = await parserResponse.json();
+      const result: ParsedResume = {
+        skills: parserJson.data.skills || [],
+        experience_years: parserJson.data.experience_years || 0,
+        education: parserJson.data.education || "Not specified",
+        summary: parserJson.data.text_snippet
+      };
 
       setUploadProgress(80);
 
@@ -81,7 +97,11 @@ export const ResumeUpload = ({ userId, onUploadComplete }: { userId: string; onU
           skills: result.skills,
           experience_years: result.experience_years,
           education: result.education,
-          parsed_content: { text_snippet: result.text.slice(0, 500) } // Store snippet
+          parsed_content: {
+            text_snippet: result.summary,
+            email: parserJson.data.email,
+            phone: parserJson.data.phone
+          }
         });
 
       if (dbError) throw dbError;

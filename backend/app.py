@@ -12,6 +12,37 @@ CORS(app)
 # Replace with your actual key if you have one, or set via nice UI later
 ZENROWS_API_KEY = "04f46eac5dda12dcfe8afdad4c168599f6262438" 
 
+from resume_parser import parse_resume
+import tempfile
+
+@app.route('/parse-resume', methods=['POST'])
+def parser_resume_endpoint():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    # Save temp
+    temp_dir = tempfile.gettempdir()
+    temp_path = os.path.join(temp_dir, file.filename)
+    file.save(temp_path)
+
+    try:
+        ext = os.path.splitext(file.filename)[1].lower()
+        result = parse_resume(temp_path, ext)
+        
+        if result:
+            return jsonify({"success": True, "data": result})
+        else:
+            return jsonify({"success": False, "error": "Could not parse file"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
 @app.route('/scrape', methods=['POST'])
 def scrape():
     data = request.json

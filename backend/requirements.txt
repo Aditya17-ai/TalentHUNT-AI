@@ -1,3 +1,6 @@
 flask
 flask-cors
 scrapy
+zenrows
+pdfminer.six
+python-docx
