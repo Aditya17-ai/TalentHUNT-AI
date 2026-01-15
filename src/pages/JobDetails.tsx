@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { MapPin, Briefcase, DollarSign, Clock, ArrowLeft, CheckCircle } from "lucide-react";
@@ -19,6 +19,7 @@ interface Job {
     salary_range: string;
     employment_type: string;
     required_skills: string[];
+    external_link?: string;
     created_at: string;
 }
 
@@ -73,31 +74,53 @@ const JobDetails = () => {
     }, [userId]);
 
     const handleApply = async () => {
-        if (!selectedResume || !userId || !job) return;
+        if (!userId || !job) return;
 
         setApplying(true);
 
-        // Simulate application (since we might not have 'applications' table yet)
-        // In a real app: await supabase.from('applications').insert(...)
+        // CASE 1: External Job (e.g. Indeed)
+        if (job.external_link) {
+            // Track the click as an "application"
+            const { error } = await supabase.from('applications').insert({
+                job_id: job.id,
+                user_id: userId,
+                status: 'Applied (External)'
+            });
 
-        // Check if we can insert into 'applications'
+            if (error && error.code !== '23505') { // Ignore duplicate key error
+                console.error("Tracking error:", error);
+            }
+
+            toast.success("Redirecting to application page...");
+            // Open in new tab
+            window.open(job.external_link, '_blank');
+            setApplying(false);
+            return;
+        }
+
+        // CASE 2: Internal Application (with Resume)
+        if (!selectedResume) return;
+
         const { error } = await supabase.from('applications').insert({
             job_id: job.id,
             user_id: userId,
             resume_id: selectedResume,
-            status: 'applied'
+            status: 'Applied'
         });
 
         if (error) {
-            // If table doesn't exist, we just simulate success for the demo
-            console.warn("Application table might contain issues or missing:", error);
-            toast.success("Application submitted successfully! (Simulated)");
+            if (error.code === '23505') {
+                toast.error("You have already applied for this job.");
+            } else {
+                console.warn("Application table might contain issues or missing:", error);
+                toast.error("Failed to submit application.");
+            }
         } else {
             toast.success("Application submitted successfully!");
+            navigate("/applications"); // Go to tracking page
         }
 
         setApplying(false);
-        navigate("/dashboard");
     };
 
     if (loading) return <div className="flex justify-center p-8">Loading...</div>;
@@ -126,6 +149,9 @@ const JobDetails = () => {
                             <DialogContent>
                                 <DialogHeader>
                                     <DialogTitle>Apply for {job.title}</DialogTitle>
+                                    <DialogDescription>
+                                        Review your application details below securely.
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div className="space-y-2">
@@ -155,7 +181,7 @@ const JobDetails = () => {
                                     <Button
                                         className="w-full"
                                         onClick={handleApply}
-                                        disabled={!selectedResume || applying}
+                                        disabled={(!selectedResume && !job.external_link) || applying}
                                     >
                                         {applying ? "Submitting..." : "Submit Application"}
                                     </Button>

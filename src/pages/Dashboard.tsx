@@ -1,14 +1,17 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Job } from "./Jobs";
 import { User, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Navbar } from "@/components/Navbar";
 import { ResumeUpload } from "@/components/ResumeUpload";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Briefcase, LogOut, User as UserIcon, FileText, Sparkles } from "lucide-react";
+import { Briefcase, LogOut, User as UserIcon, FileText, Sparkles, MapPin, DollarSign } from "lucide-react";
+import { batchCalculateMatches } from "@/utils/aiMatchingService";
 
 interface Resume {
   id: string;
@@ -25,6 +28,9 @@ const Dashboard = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [resumes, setResumes] = useState<Resume[]>([]);
+  const [activeJobs, setActiveJobs] = useState<Job[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -52,40 +58,67 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user) {
-      fetchProfile();
-      fetchResumes();
+      fetchDashboardData();
     }
   }, [user]);
 
-  const fetchProfile = async () => {
-    if (!user) return;
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+      // Fetch Profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
 
-    if (error) {
-      console.error("Error fetching profile:", error);
-    } else {
-      setProfile(data);
-    }
-  };
+      if (profile) setProfile(profile);
 
-  const fetchResumes = async () => {
-    if (!user) return;
+      // Fetch Resumes
+      const { data: resumesData } = await supabase
+        .from('resumes')
+        .select('*')
+        .eq('user_id', user.id);
 
-    const { data, error } = await supabase
-      .from("resumes")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      if (resumesData) {
+        setResumes(resumesData);
 
-    if (error) {
-      console.error("Error fetching resumes:", error);
-    } else {
-      setResumes(data || []);
+        // If we have resumes, fetch active jobs to calculate matches
+        const { data: jobsData } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('is_active', true)
+          .limit(50); // Limit for performance
+
+        if (jobsData && resumesData.length > 0) {
+          setActiveJobs(jobsData);
+
+          // Run AI Matching locally
+          const primaryResume = resumesData[0]; // Use first resume for main dashboard matches
+          const calculatedMatches = batchCalculateMatches(primaryResume, jobsData);
+
+          // Transform for display
+          const displayMatches = calculatedMatches.map(m => {
+            const job = jobsData.find(j => j.id === m.job_id);
+            return {
+              ...job,
+              score: m.score,
+              matched_skills: m.skill_match.matched
+            };
+          });
+
+          setMatches(displayMatches.slice(0, 6)); // Top 6
+        }
+      }
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -156,7 +189,7 @@ const Dashboard = () => {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-6">
-            <ResumeUpload userId={user.id} onUploadComplete={fetchResumes} />
+            <ResumeUpload userId={user.id} onUploadComplete={fetchDashboardData} />
 
             {resumes.length > 0 && (
               <Card>
@@ -203,32 +236,82 @@ const Dashboard = () => {
             )}
           </div>
 
-          <Card>
+          <Card className="col-span-full">
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <CardTitle>AI Job Matches</CardTitle>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <CardTitle>AI Job Matches</CardTitle>
+                </div>
+                {resumes.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => navigate("/jobs")}>
+                    View All Jobs
+                  </Button>
+                )}
               </div>
               <CardDescription>
                 {resumes.length > 0
-                  ? "Your AI-powered job matches will appear here"
+                  ? "Jobs ranked by compatibility with your resume"
                   : "Upload your resume to start receiving AI-matched job recommendations"
                 }
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                {resumes.length > 0 ? (
-                  <div className="space-y-4">
-                    <p>Browse jobs to see your match scores</p>
-                    <Button variant="hero" onClick={() => navigate("/jobs")}>
-                      Browse Jobs
-                    </Button>
-                  </div>
-                ) : (
+              {resumes.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
                   <p>Upload your resume above to get started</p>
-                )}
-              </div>
+                </div>
+              ) : matches.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {matches.slice(0, 3).map((match) => (
+                    <Card key={match.id} className="border-l-4 border-l-primary hover:shadow-md transition-all">
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-semibold text-lg line-clamp-1">{match.title}</h3>
+                            <p className="text-sm text-muted-foreground">{match.company}</p>
+                          </div>
+                          <Badge variant={match.score > 80 ? "default" : match.score > 60 ? "secondary" : "outline"}>
+                            {match.score}% Match
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pb-2">
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> {match.location}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" /> {match.salary_range}
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold mb-1">Matched Skills:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {match.matched_skills.slice(0, 3).map(skill => (
+                              <Badge key={skill} variant="outline" className="text-[10px] bg-green-500/10 text-green-700 border-green-200">
+                                {skill}
+                              </Badge>
+                            ))}
+                            {match.matched_skills.length > 3 && (
+                              <span className="text-[10px] text-muted-foreground">+{match.matched_skills.length - 3} more</span>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                      <CardFooter>
+                        <Button className="w-full text-xs" size="sm" onClick={() => navigate(`/jobs/${match.id}`)}>
+                          View Details
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>No matches found yet. Try importing more jobs!</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

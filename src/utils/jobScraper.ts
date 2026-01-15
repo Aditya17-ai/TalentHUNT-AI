@@ -58,7 +58,7 @@ export const simulateScraping = async (
     try {
         console.log(`[Scraper] Attempting Python Backend: http://localhost:5000/scrape`);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
         const response = await fetch('http://localhost:5000/scrape', {
             method: 'POST',
@@ -82,14 +82,13 @@ export const simulateScraping = async (
 
     // 2. Browser Proxy Strategy (Existing Fallback)
     try {
-        console.log(`[Scraper] Fetching via AllOrigins proxy: ${targetUrl}`);
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+        console.log(`[Scraper] Fetching via CORS Proxy: ${targetUrl}`);
+        // using corsproxy.io as it is often more reliable
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
         const response = await fetch(proxyUrl);
-        const data = await response.json();
+        if (!response.ok) throw new Error(`Proxy error: ${response.status}`);
 
-        if (!data.contents) throw new Error("Empty proxy response");
-
-        const html = data.contents;
+        const html = await response.text();
         const realJobs: ScrapedJob[] = [];
 
         // Strategy 2a: JSON-LD (Structured Data) - Best for Indeed/Google Jobs
@@ -168,7 +167,7 @@ export const simulateScraping = async (
                 const jobCards = doc.querySelectorAll('div[class*="job"], div[class*="Job"], li[class*="result"]');
 
                 jobCards.forEach((card, index) => {
-                    if (index > 4) return; // Limit to 5
+                    if (index > 19) return; // Limit to 20
 
                     const title = card.querySelector('h2, h3, a[class*="title"]')?.textContent?.trim();
                     const company = card.querySelector('[class*="company"], [class*="Company"]')?.textContent?.trim();
@@ -193,7 +192,7 @@ export const simulateScraping = async (
 
         if (realJobs.length > 0) {
             console.log(`[Scraper] Successfully accepted ${realJobs.length} real jobs`);
-            return realJobs.slice(0, 5);
+            return realJobs.slice(0, 20);
         }
 
         console.log("[Scraper] No structured data found, reverting to simulation.");
@@ -210,7 +209,7 @@ export const simulateScraping = async (
     const delay = Math.random() * 1000 + 1000;
     await new Promise(resolve => setTimeout(resolve, delay));
 
-    const count = Math.floor(Math.random() * 4) + 2;
+    const count = Math.floor(Math.random() * 6) + 10;
     const jobs: ScrapedJob[] = [];
 
     // If it was a URL, try to guess context

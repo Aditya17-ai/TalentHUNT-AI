@@ -12,7 +12,7 @@ import { JobImportModal } from "@/components/JobImportModal";
 import { PostJobModal, JobFormData } from "@/components/PostJobModal";
 import { ScrapedJob } from "@/utils/jobScraper";
 
-interface Job {
+export interface Job {
   id: string;
   title: string;
   company: string;
@@ -21,6 +21,7 @@ interface Job {
   salary_range: string;
   employment_type: string;
   required_skills: string[];
+  external_link?: string;
 }
 
 const Jobs = () => {
@@ -106,30 +107,18 @@ const Jobs = () => {
       is_active: true
     };
 
-    // Try Schema A (Template - with requirements)
-    const { error: errorA } = await supabase.from('jobs').insert([newJobPayload]);
+    const { error } = await supabase.from('jobs').insert([newJobPayload]);
 
-    if (errorA) {
-      console.warn("Schema A failed:", errorA.message);
+    if (error) {
+      console.warn("Post Job failed:", error.message);
+      toast.warning("Database unavailable/Error. Posting job locally.");
 
-      // Try Schema B (Standard - no requirements)
-      const { requirements, ...schemaBPayload } = newJobPayload;
-      const { error: errorB } = await supabase.from('jobs').insert([schemaBPayload]);
-
-      if (errorB) {
-        console.error("Schema B failed:", errorB);
-        toast.warning("Database unavailable. Posting job locally.");
-
-        // Add to local state
-        const localJob = {
-          id: `local-${Date.now()}`,
-          ...jobData
-        };
-        setJobs(prev => [localJob as unknown as Job, ...prev]);
-      } else {
-        toast.success("Job posted successfully!");
-        fetchJobs();
-      }
+      // Add to local state
+      const localJob = {
+        id: `local-${Date.now()}`,
+        ...jobData
+      };
+      setJobs(prev => [localJob as unknown as Job, ...prev]);
     } else {
       toast.success("Job posted successfully!");
       fetchJobs();
@@ -148,28 +137,18 @@ const Jobs = () => {
       salary_range: job.salary_range,
       employment_type: job.employment_type,
       required_skills: job.required_skills,
-      requirements: job.requirements,
+      requirements: job.requirements || "See full job description for requirements.",
       is_active: true
     }));
 
-    // Try Schema A first
-    const { error: errorA } = await supabase.from('jobs').insert(newJobs);
+    // Try insertion (Schema A is the only valid one now)
+    const { error } = await supabase.from('jobs').insert(newJobs);
 
-    if (errorA) {
-      console.error("Import Schema A failed:", errorA.message);
-      // Try Schema B (no requirements)
-      const newJobsB = newJobs.map(({ requirements, ...job }) => job);
-      const { error: errorB } = await supabase.from('jobs').insert(newJobsB);
-
-      if (errorB) {
-        console.error("Import Schema B failed:", errorB);
-        toast.error(`Import saved to local view only (DB Error: ${errorB.message})`);
-        const localJobs = newJobs.map((j, i) => ({ ...j, id: `local-import-${Date.now()}-${i}` }));
-        setJobs(prev => [...localJobs as unknown as Job[], ...prev]);
-      } else {
-        toast.success("Jobs imported successfully!");
-        fetchJobs();
-      }
+    if (error) {
+      console.error("Import failed:", error.message);
+      toast.error(`Import saved to local view only (DB Error: ${error.message})`);
+      const localJobs = newJobs.map((j, i) => ({ ...j, id: `local-import-${Date.now()}-${i}` }));
+      setJobs(prev => [...localJobs as unknown as Job[], ...prev]);
     } else {
       toast.success("Jobs imported successfully!");
       fetchJobs();

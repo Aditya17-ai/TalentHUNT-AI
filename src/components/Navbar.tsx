@@ -16,29 +16,36 @@ export const Navbar = ({ isAuthenticated = false, onAuthClick }: NavbarProps) =>
             <Briefcase className="h-6 w-6 text-primary" />
             <span>TalentMatch AI</span>
           </NavLink>
-          
+
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
               <>
-                <NavLink 
-                  to="/dashboard" 
+                <NavLink
+                  to="/dashboard"
                   className="text-foreground hover:text-primary transition-colors"
                   activeClassName="text-primary font-semibold"
                 >
                   Dashboard
                 </NavLink>
-                <NavLink 
-                  to="/jobs" 
+                <NavLink
+                  to="/jobs"
                   className="text-foreground hover:text-primary transition-colors"
                   activeClassName="text-primary font-semibold"
                 >
                   Browse Jobs
                 </NavLink>
+                <NavLink
+                  to="/applications"
+                  className="text-foreground hover:text-primary transition-colors"
+                  activeClassName="text-primary font-semibold"
+                >
+                  My Applications
+                </NavLink>
               </>
             ) : (
               <>
-                <NavLink 
-                  to="/" 
+                <NavLink
+                  to="/"
                   className="text-foreground hover:text-primary transition-colors"
                   activeClassName="text-primary font-semibold"
                 >

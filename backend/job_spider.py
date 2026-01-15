@@ -8,11 +8,12 @@ class JobSpider(scrapy.Spider):
     custom_settings = {
         'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'ROBOTSTXT_OBEY': False,
-        'DOWNLOAD_DELAY': 3,
+        'DOWNLOAD_DELAY': 5,
         'COOKIES_ENABLED': True,
+        'HTTPERROR_ALLOW_ALL': True, # Allow all error codes to be passed to parse
         'DEFAULT_REQUEST_HEADERS': {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
@@ -21,6 +22,9 @@ class JobSpider(scrapy.Spider):
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
+            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
         }
     }
     
@@ -32,6 +36,10 @@ class JobSpider(scrapy.Spider):
             self.start_urls = []
 
     def parse(self, response):
+        # DEBUG: Save HTML to inspect seeing what we get
+        with open('debug.html', 'w', encoding='utf-8') as f:
+            f.write(response.text)
+            
         found = False
         
         # Strategy 1: JSON-LD (Structured Data)
@@ -51,15 +59,34 @@ class JobSpider(scrapy.Spider):
 
         # Strategy 2: Indeed Specific Selectors (Fallback)
         if not found:
-            # Indeed 2024/2025 Layout Selectors
-            indeed_cards = response.css('div.job_seen_beacon, td.resultContent')
+            # Indeed 2024/2025 Layout Selectors (Updated)
+            # Try multiple container types
+            indeed_cards = response.css('div.job_seen_beacon, td.resultContent, div.cardOutline, div.slider_container')
             
             for card in indeed_cards:
-                title = card.css('h2.jobTitle span::text').get() or card.css('a[id^="job_"] span::text').get()
+                # Title selectors
+                title = (
+                    card.css('h2.jobTitle span::text').get() or 
+                    card.css('a[id^="job_"] span::text').get() or
+                    card.css('.jobTitle a span::text').get() or
+                    card.css('a.jcs-JobTitle span::text').get()
+                )
+                
                 if not title: continue
                 
-                company = card.css('span[data-testid="company-name"]::text').get() or card.css('span.companyName::text').get()
-                location = card.css('div[data-testid="text-location"]::text').get() or card.css('div.companyLocation::text').get()
+                # Company selectors
+                company = (
+                    card.css('span[data-testid="company-name"]::text').get() or 
+                    card.css('span.companyName::text').get() or
+                    card.css('.company_location [data-testid="company-name"]::text').get()
+                )
+                
+                # Location selectors
+                location = (
+                    card.css('div[data-testid="text-location"]::text').get() or 
+                    card.css('div.companyLocation::text').get() or
+                    card.css('.company_location [data-testid="text-location"]::text').get()
+                )
                 
                 # Try to clean up URL
                 link_href = card.xpath('.//a[contains(@class, "jcs-JobTitle")]/@href').get()
