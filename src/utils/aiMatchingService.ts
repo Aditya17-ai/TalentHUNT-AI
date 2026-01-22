@@ -94,3 +94,23 @@ export const calculateJobMatch = (resume: any, job: Job): JobMatchResult => {
 export const batchCalculateMatches = (resume: any, jobs: Job[]): JobMatchResult[] => {
     return jobs.map(job => calculateJobMatch(resume, job)).sort((a, b) => b.score - a.score);
 };
+
+export const calculateBestMatches = (resumes: any[], jobs: Job[]): JobMatchResult[] => {
+    // For each job, find the best match score among all resumes
+    const bestMatches = jobs.map(job => {
+        let bestMatch: JobMatchResult | null = null;
+        let highestScore = -1;
+
+        resumes.forEach(resume => {
+            const match = calculateJobMatch(resume, job);
+            if (match.score > highestScore) {
+                highestScore = match.score;
+                bestMatch = match;
+            }
+        });
+
+        return bestMatch!;
+    });
+
+    return bestMatches.sort((a, b) => b.score - a.score);
+};
