@@ -48,6 +48,10 @@ export const simulateScraping = async (
             targetUrl = `https://in.indeed.com/jobs?q=${encodeURIComponent(keyword)}`;
         } else if (platform === 'Naukri') {
             targetUrl = `https://www.naukri.com/${encodeURIComponent(keyword)}-jobs`;
+        } else if (platform === 'LinkedIn') {
+            targetUrl = `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(keyword)}`;
+        } else if (platform === 'Glassdoor') {
+            targetUrl = `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodeURIComponent(keyword)}`;
         } else {
             targetUrl = `https://www.google.com/search?q=${encodeURIComponent(keyword)}+jobs+${platform}`;
         }
@@ -56,11 +60,12 @@ export const simulateScraping = async (
     // --- REAL SCRAPING STRATEGY ---
     // 1. Try Local Python Backend (Scrapy) - User Requested
     try {
-        console.log(`[Scraper] Attempting Python Backend: http://localhost:5000/scrape`);
+        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '/api';
+        console.log(`[Scraper] Attempting Python Backend: ${BACKEND_URL}/scrape`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-        const response = await fetch('http://localhost:5000/scrape', {
+        const response = await fetch(`${BACKEND_URL}/scrape`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: targetUrl }),
@@ -244,7 +249,7 @@ export const simulateScraping = async (
             required_skills: relevantSkills.slice(0, 3),
             requirements: `Proven experience required.`,
             source: platform as any,
-            external_link: isUrl ? keyword : `https://google.com/search?q=${searchTerm}`
+            external_link: targetUrl
         });
     }
 

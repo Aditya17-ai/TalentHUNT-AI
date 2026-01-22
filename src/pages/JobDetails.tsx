@@ -80,10 +80,18 @@ const JobDetails = () => {
 
         // CASE 1: External Job (e.g. Indeed)
         if (job.external_link) {
-            // Track the click as an "application"
+
+            if (!selectedResume) {
+                toast.error("Please select a resume to track this application.");
+                setApplying(false);
+                return;
+            }
+
+            // Track the click as an "application" with the selected resume
             const { error } = await supabase.from('applications').insert({
                 job_id: job.id,
                 user_id: userId,
+                resume_id: selectedResume,
                 status: 'Applied (External)'
             });
 
@@ -91,14 +99,14 @@ const JobDetails = () => {
                 console.error("Tracking error:", error);
             }
 
-            toast.success("Redirecting to application page...");
-            // Open in new tab
-            window.open(job.external_link, '_blank');
+            toast.success("Application submitted successfully!");
             setApplying(false);
+            navigate("/applications");
+
             return;
         }
 
-        // CASE 2: Internal Application (with Resume)
+        // CASE 2: Internal Application
         if (!selectedResume) return;
 
         const { error } = await supabase.from('applications').insert({
@@ -181,7 +189,7 @@ const JobDetails = () => {
                                     <Button
                                         className="w-full"
                                         onClick={handleApply}
-                                        disabled={(!selectedResume && !job.external_link) || applying}
+                                        disabled={!selectedResume || applying}
                                     >
                                         {applying ? "Submitting..." : "Submit Application"}
                                     </Button>

@@ -114,6 +114,7 @@ export function JobImportModal({ onImport }: JobImportModalProps) {
                                 if (url.includes('indeed')) setPlatform('Indeed');
                                 if (url.includes('naukri')) setPlatform('Naukri');
                                 if (url.includes('linkedin')) setPlatform('LinkedIn');
+                                if (url.includes('glassdoor')) setPlatform('Glassdoor');
                                 // Simple extraction simulation
                                 if (url.length > 10) setKeyword('Imported Job Role');
                             }}

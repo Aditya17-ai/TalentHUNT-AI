@@ -11,7 +11,7 @@ import { ResumeUpload } from "@/components/ResumeUpload";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Briefcase, LogOut, User as UserIcon, FileText, Sparkles, MapPin, DollarSign } from "lucide-react";
-import { batchCalculateMatches } from "@/utils/aiMatchingService";
+import { calculateBestMatches } from "@/utils/aiMatchingService";
 
 interface Resume {
   id: string;
@@ -97,8 +97,8 @@ const Dashboard = () => {
           setActiveJobs(jobsData);
 
           // Run AI Matching locally
-          const primaryResume = resumesData[0]; // Use first resume for main dashboard matches
-          const calculatedMatches = batchCalculateMatches(primaryResume, jobsData);
+          // Run AI Matching locally considers ALL resumes for best match
+          const calculatedMatches = calculateBestMatches(resumesData, jobsData);
 
           // Transform for display
           const displayMatches = calculatedMatches.map(m => {

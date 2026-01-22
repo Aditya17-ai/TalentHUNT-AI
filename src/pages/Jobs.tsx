@@ -21,6 +21,7 @@ export interface Job {
   salary_range: string;
   employment_type: string;
   required_skills: string[];
+  experience_required?: number;
   external_link?: string;
 }
 
@@ -141,8 +142,37 @@ const Jobs = () => {
       is_active: true
     }));
 
+    // 1. Remove duplicates within the imported batch itself
+    const uniqueImported = importedJobs.filter((job, index, self) =>
+      index === self.findIndex((t) => (
+        t.title === job.title && t.company === job.company
+      ))
+    );
+
+    // 2. Filter out jobs that already exist in the database (current view)
+    const newJobsPayload = uniqueImported
+      .filter(job => !jobs.some(existing => existing.title === job.title && existing.company === job.company))
+      .map(job => ({
+        title: job.title,
+        company: job.company,
+        description: job.description,
+        location: job.location,
+        salary_range: job.salary_range,
+        employment_type: job.employment_type,
+        required_skills: job.required_skills,
+        requirements: job.requirements || "See full job description for requirements.",
+        is_active: true,
+        external_link: job.external_link
+      }));
+
+    if (newJobsPayload.length === 0) {
+      toast.info("No new jobs to import (all duplicates).");
+      setLoading(false);
+      return;
+    }
+
     // Try insertion (Schema A is the only valid one now)
-    const { error } = await supabase.from('jobs').insert(newJobs);
+    const { error } = await supabase.from('jobs').insert(newJobsPayload);
 
     if (error) {
       console.error("Import failed:", error.message);

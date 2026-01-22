@@ -70,7 +70,7 @@ export const ResumeUpload = ({ userId, onUploadComplete }: { userId: string; onU
       const formData = new FormData();
       formData.append('file', file);
 
-      const parserResponse = await fetch('http://localhost:5000/parse-resume', {
+      const parserResponse = await fetch('/api/parse-resume', {
         method: 'POST',
         body: formData
       });

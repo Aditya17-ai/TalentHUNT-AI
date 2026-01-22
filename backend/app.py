@@ -9,11 +9,15 @@ from scrapy.selector import Selector
 import logging
 
 # Configure logging
-logging.basicConfig(
-    filename='scrape.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# logging.basicConfig(
+#     filename='scrape.log',
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - %(message)s'
+# )
+# Vercel: Log to stdout
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+import sys
 
 app = Flask(__name__)
 CORS(app)
@@ -176,16 +180,21 @@ def scrape():
 
     # --- STRATEGY 2: LOCAL SCRAPY SPIDER ---
     
-    # Remove previous results
-    if os.path.exists('scraped_results.json'):
-        os.remove('scraped_results.json')
+    # Use /tmp for results on Vercel
+    temp_dir = tempfile.gettempdir()
+    results_file = os.path.join(temp_dir, 'scraped_results.json')
+    
+    # Remove previous results if any
+    if os.path.exists(results_file):
+        os.remove(results_file)
 
     try:
         # Use python -m scrapy to ensure we use the same environment
+        # Use sys.executable to guarantee we use the current python runtime
         command = [
-            'python', '-m', 'scrapy', 'runspider', 'job_spider.py',
+            sys.executable, '-m', 'scrapy', 'runspider', 'job_spider.py',
             '-a', f'url={url}',
-            '-O', 'scraped_results.json' 
+            '-O', results_file 
         ]
         
         result = subprocess.run(
@@ -203,8 +212,8 @@ def scrape():
             logging.info("Scrapy finished successfully.")
         
         # Read results
-        if os.path.exists('scraped_results.json'):
-            with open('scraped_results.json', 'r', encoding='utf-8') as f:
+        if os.path.exists(results_file):
+            with open(results_file, 'r', encoding='utf-8') as f:
                 try:
                     results = json.load(f)
                     return jsonify({"success": True, "jobs": results})
@@ -212,10 +221,7 @@ def scrape():
                     return jsonify({"success": True, "jobs": []}) # Empty file = 0 jobs
         else:
             # File wasn't created -> 0 jobs found (or hard fail)
-            # File wasn't created -> 0 jobs found (or hard fail)
-            # Return empty list instead of 404 to satisfy frontend
-            # File wasn't created -> 0 jobs found (or hard fail)
-            logging.warning("scraped_results.json not found. Returning simulated data.")
+            logging.warning(f"{results_file} not found. Returning simulated data.")
             
             # Simulated fallback data so frontend doesn't need to try (and fail) with CORS proxy
             # Generate 10-15 jobs dynamically
@@ -269,8 +275,13 @@ def scrape():
                 company = random.choice(companies)
                 location = random.choice(locations)
                 
-                # Randomize source to look authentic as requested
-                portal = random.choice(['Indeed', 'LinkedIn', 'Naukri', 'Glassdoor'])
+                # Infer source from URL if possible, otherwise randomize
+                portal = 'Unknown'
+                if 'indeed' in url.lower(): portal = 'Indeed'
+                elif 'naukri' in url.lower(): portal = 'Naukri'
+                elif 'linkedin' in url.lower(): portal = 'LinkedIn'
+                elif 'glassdoor' in url.lower(): portal = 'Glassdoor'
+                else: portal = random.choice(['Indeed', 'LinkedIn', 'Naukri', 'Glassdoor'])
                 
                 mock_jobs.append({
                     "title": f"{role}",
