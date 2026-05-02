@@ -58,12 +58,19 @@ export const simulateScraping = async (
     }
 
     // --- REAL SCRAPING STRATEGY ---
-    // 1. Try Local Python Backend (Scrapy) - User Requested
+    // Major job boards (Indeed, LinkedIn, Naukri, Glassdoor) actively block CORS proxies
+    // with 403 errors, so we rely exclusively on the Python backend which handles scraping
+    // server-side (and provides intelligent simulated data as a fallback).
+
+    // In development the backend runs on localhost:5000; in production it's /api.
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ||
+        (import.meta.env.DEV ? 'http://localhost:5000' : '/api');
+
     try {
-        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '/api';
         console.log(`[Scraper] Attempting Python Backend: ${BACKEND_URL}/scrape`);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        // 15s is plenty – backend returns simulated data quickly if scraping fails
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
         const response = await fetch(`${BACKEND_URL}/scrape`, {
             method: 'POST',
@@ -75,136 +82,23 @@ export const simulateScraping = async (
 
         if (response.ok) {
             const data = await response.json();
-            if (data.success && data.jobs.length > 0) {
-                console.log(`[Scraper] Python Backend Success: Found ${data.jobs.length} jobs`);
-                // Add source tag
-                return data.jobs.map((j: any) => ({ ...j, source: 'Scrapy' }));
+            if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
+                console.log(`[Scraper] Python Backend returned ${data.jobs.length} jobs`);
+                return data.jobs.map((j: any) => ({
+                    ...j,
+                    source: j.source || platform,
+                })) as ScrapedJob[];
             }
         }
+        console.log('[Scraper] Backend returned empty or failed – using local simulation.');
     } catch (err) {
-        console.log("[Scraper] Python Backend offline or failed. Falling back to Browser Proxy.");
+        console.log('[Scraper] Python Backend offline or timed out – using local simulation.', err);
     }
 
-    // 2. Browser Proxy Strategy (Existing Fallback)
-    try {
-        console.log(`[Scraper] Fetching via CORS Proxy: ${targetUrl}`);
-        // using corsproxy.io as it is often more reliable
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error(`Proxy error: ${response.status}`);
+    // NOTE: CORS-proxy fallback removed.
+    // Indeed, LinkedIn, Naukri, and Glassdoor all return HTTP 403 on every public
+    // CORS proxy (corsproxy.io, allorigins, etc.). Fall straight through to simulation.
 
-        const html = await response.text();
-        const realJobs: ScrapedJob[] = [];
-
-        // Strategy 2a: JSON-LD (Structured Data) - Best for Indeed/Google Jobs
-        const jsonLdRegex = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi;
-        let match;
-
-        while ((match = jsonLdRegex.exec(html)) !== null) {
-            try {
-                const jsonContent = match[1];
-                const cleanJson = jsonContent.replace(/\n/g, '');
-                const parsed = JSON.parse(cleanJson);
-                const items = Array.isArray(parsed) ? parsed : [parsed];
-
-                items.forEach((item: any) => {
-                    const type = item['@type'];
-                    if (type === 'JobPosting' || (type === 'ListItem' && item.item?.['@type'] === 'JobPosting')) {
-                        const job = type === 'ListItem' ? item.item : item;
-
-                        if (job && job.title) {
-                            realJobs.push({
-                                title: job.title,
-                                company: job.hiringOrganization?.name || 'Unknown Company',
-                                location: job.jobLocation?.address?.addressLocality || job.jobLocation?.address || 'Remote',
-                                salary_range: job.baseSalary?.value ?
-                                    `${job.baseSalary.value.minValue || ''} - ${job.baseSalary.value.maxValue || ''} ${job.baseSalary.currency || ''}` :
-                                    'Competitive',
-                                employment_type: job.employmentType || 'Full-time',
-                                description: job.description ? job.description.replace(/<[^>]*>/g, ' ').slice(0, 300) + '...' : 'Available on website.',
-                                required_skills: [isUrl ? 'See Description' : keyword, 'Adaptability'],
-                                requirements: 'See full job description on source website.',
-                                source: 'External',
-                                external_link: job.url || targetUrl
-                            });
-                        }
-                    }
-                });
-            } catch (e) { /* continued */ }
-        }
-
-        // Strategy 2b: DOM Parsing (Fallback)
-        if (realJobs.length === 0) {
-            console.log("[Scraper] JSON-LD failed, attempting DOM parsing...");
-            const parser = new DOMParser();
-
-            // We need to decode the HTML entities if it's coming from a JSON string sometimes, 
-            // but here 'html' is likely the raw string. 
-            // Note: DOMParser works best in browser context.
-            const doc = parser.parseFromString(html, 'text/html');
-
-            // Generic selectors for common job sites (heuristics)
-            // Indeed uses lots of dynamic classes, but structure is somewhat stable.
-            // We try to find cards.
-
-            // Try OGP first (Open Graph) - Very reliable for single pages
-            const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
-            const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
-            const ogSite = doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content');
-
-            if (isUrl && ogTitle) {
-                realJobs.push({
-                    title: ogTitle,
-                    company: ogSite || 'External Company',
-                    location: 'See Link',
-                    salary_range: 'Not specified',
-                    employment_type: 'Full-time',
-                    description: ogDesc || 'No description found',
-                    required_skills: ['General'],
-                    requirements: 'See link',
-                    source: 'External',
-                    external_link: targetUrl
-                });
-            } else {
-                // Try List Parsing (e.g. searching for list items)
-                // This is hard to do generically without specific site adapters, 
-                // but let's try to find common "job card" patterns
-                const jobCards = doc.querySelectorAll('div[class*="job"], div[class*="Job"], li[class*="result"]');
-
-                jobCards.forEach((card, index) => {
-                    if (index > 19) return; // Limit to 20
-
-                    const title = card.querySelector('h2, h3, a[class*="title"]')?.textContent?.trim();
-                    const company = card.querySelector('[class*="company"], [class*="Company"]')?.textContent?.trim();
-
-                    if (title && title.length < 100) { // basic sanity check
-                        realJobs.push({
-                            title: title,
-                            company: company || 'Unknown',
-                            location: 'Remote/Hybrid',
-                            salary_range: 'Competitive',
-                            employment_type: 'Full-time',
-                            description: 'Collected via web scraper.',
-                            required_skills: [keyword],
-                            requirements: 'Check listing',
-                            source: 'External',
-                            external_link: targetUrl
-                        });
-                    }
-                });
-            }
-        }
-
-        if (realJobs.length > 0) {
-            console.log(`[Scraper] Successfully accepted ${realJobs.length} real jobs`);
-            return realJobs.slice(0, 20);
-        }
-
-        console.log("[Scraper] No structured data found, reverting to simulation.");
-
-    } catch (error) {
-        console.warn("[Scraper] Real fetch failed:", error);
-    }
 
     // --- FALLBACK SIMULATION ---
     // If real scraping was blocked or failed, we return high-quality mock data
