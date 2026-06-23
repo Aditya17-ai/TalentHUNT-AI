@@ -109,25 +109,10 @@ class JobSpider(scrapy.Spider):
                     }
 
         # Strategy 3: Open Graph (Last Resort)
-        if not found:
-            # ... (Open Graph logic)
-            og_title = response.xpath('//meta[@property="og:title"]/@content').get()
-            og_desc = response.xpath('//meta[@property="og:description"]/@content').get()
-            og_site = response.xpath('//meta[@property="og:site_name"]/@content').get() or 'External Site'
-            
-            if og_title:
-                yield {
-                    'title': og_title,
-                    'company': og_site,
-                    'location': 'See Link',
-                    'salary_range': 'Competitive',
-                    'employment_type': 'Full-time',
-                    'description': og_desc or "No description available.",
-                    'required_skills': ['General'],
-                    'requirements': 'See job link for details.',
-                    'source': 'External',
-                    'external_link': response.url
-                }
+        # Removed: Open Graph frequently captures the search page's metadata (like "1000+ React Jobs") 
+        # as a single job posting, which breaks the expected list of individual jobs.
+        # If no jobs are found via JSON-LD or CSS selectors, it's better to return 0 
+        # so the backend can fall back to the simulated mock jobs.
 
     def parse_job_posting(self, item, url):
         return {
