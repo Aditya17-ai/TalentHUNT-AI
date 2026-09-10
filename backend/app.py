@@ -75,9 +75,6 @@ def scrape():
 
     logging.info(f"Received scrape request for URL: {url}")
 
-    # -----------------------------------------------------------------------
-    # Extract keyword from URL query string
-    # -----------------------------------------------------------------------
     keyword = "Developer"
     try:
         query_params = parse_qs(urlparse(url).query)
