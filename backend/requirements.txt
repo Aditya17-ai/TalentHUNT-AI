@@ -1,6 +1,7 @@
-flask
-flask-cors
-scrapy
-zenrows
-pdfminer.six
-python-docx
+flask==2.3.3
+flask-cors==4.0.0
+scrapy==2.11.0
+zenrows==1.2.1
+pdfminer.six==20221105
+python-docx==0.8.11
+gunicorn==21.2.0

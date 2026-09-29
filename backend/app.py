@@ -9,6 +9,11 @@ import tempfile
 import logging
 from urllib.parse import urlparse, parse_qs
 
+# Ensure the backend directory is in sys.path when imported as backend.app
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from zenrows import ZenRowsClient
 from scrapy.selector import Selector
 from resume_parser import parse_resume

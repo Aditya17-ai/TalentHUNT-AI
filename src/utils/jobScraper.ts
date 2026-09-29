@@ -63,8 +63,8 @@ export const simulateScraping = async (
     // server-side (and provides intelligent simulated data as a fallback).
 
     // In development the backend runs on localhost:5000; in production it's /api.
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ||
-        (import.meta.env.DEV ? 'http://localhost:5000' : '/api');
+    const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL ||
+        (import.meta.env.DEV ? 'http://localhost:5000' : '/api')).replace(/\/$/, '');
 
     try {
         console.log(`[Scraper] Attempting Python Backend: ${BACKEND_URL}/scrape`);
